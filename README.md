@@ -1,54 +1,45 @@
-# ⚡ Load Balancer Simulator with Strategy Comparison
+# ⚡ AWS Cloud Infrastructure Load Balancer Visualizer
 
-> A full-stack, production-ready interactive web application that simulates how cloud load balancers work — visualizing Round Robin, Least Connections, and Weighted Round Robin algorithms in real-time using WebSockets, live charts, and AWS DynamoDB cloud logging.
+> A full-stack, cloud-native web application that provisions **real AWS infrastructure** (Elastic Compute Cloud, Application Load Balancer) to visualize how traffic is logically routed in the cloud. It pairs real backend cloud architecture with an incredibly detailed, interactive React frontend dashboard.
 
 ---
 
 ## 📋 Table of Contents
 
 1. [What Is This Project?](#-what-is-this-project)
-2. [Live Output — What You See](#-live-output--what-you-see)
-3. [Page 1 — Dashboard (Detailed Walkthrough)](#-page-1--dashboard)
-4. [Page 2 — Comparison Page](#-page-2--comparison-page)
-5. [Load Balancing Algorithms Explained](#-load-balancing-algorithms-explained)
-6. [Real-Time System (WebSockets)](#-real-time-system-websockets)
-7. [AWS DynamoDB Cloud Integration](#-aws-dynamodb-cloud-integration)
-8. [Virtual Server System](#-virtual-server-system)
-9. [Simulation Engine — How It Works](#-simulation-engine--how-it-works)
-10. [All Features List](#-all-features-list)
-11. [Tech Stack Explanation](#-tech-stack-explanation)
-12. [API Reference](#-api-reference)
-13. [Project Structure](#-project-structure)
-14. [How to Run](#-how-to-run)
+2. [The Website Interface In Depth](#-the-website-interface-in-depth)
+   - [Live Output Layout](#live-output-layout)
+   - [Page 1: The Dashboard](#page-1-the-dashboard)
+   - [Page 2: Strategy Comparison & Logs](#page-2-strategy-comparison--logs)
+3. [Real AWS Architecture](#-real-aws-architecture)
+4. [Load Balancing Algorithms on AWS](#-load-balancing-algorithms-on-aws)
+5. [Chaos Engineering & Node Failures](#-chaos-engineering--node-failures)
+6. [Real-Time Metrics (WebSockets)](#-real-time-metrics-websockets)
+7. [How to Run](#-how-to-run)
 
 ---
 
 ## 🎯 What Is This Project?
 
-In real cloud infrastructure (like AWS, Google Cloud, Azure), when thousands of users send requests to your application at the same time, a **Load Balancer** sits in front of your servers and decides *which server* should handle each incoming request.
+Unlike typical software simulations, this project interacts with actual physical hardware on AWS. When you launch the simulator, the Node.js backend uses the AWS SDK to build a real cloud environment (EC2 VMs and Application Load Balancers). 
 
-This project **simulates** that entire process in your browser:
-
-- You create virtual traffic (incoming requests)
-- The load balancer picks a server using your chosen algorithm
-- You watch the servers get loaded up in real-time
-- You compare how different strategies handle the same traffic
-
-**Think of it like this:** Imagine a restaurant (your app) with 6 waiters (servers). The host at the door (load balancer) decides which waiter takes the next customer. Should they go in turns? Send customers to the least-busy waiter? This app shows you all three strategies in action.
+The magic, however, happens on the **Website Frontend**. The web app provides a mission-control command center where you can start firing live HTTP botnet traffic at your AWS load balancer. As Amazon routes the traffic, your website uses WebSockets to instantly draw animated charts, load bars, and pie charts—showing you exactly what your cloud cluster is doing under pressure.
 
 ---
 
-## 🖥️ Live Output — What You See
+## 🖥️ The Website Interface In Depth
 
-When you open the app at `http://localhost:5173`, you see:
+### Live Output Layout
 
-```
+When you open the web application, you are greeted with this highly complex, responsive dashboard map:
+
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  ⚡ LB Simulator    [Dashboard] [Comparison]   [● Live] │  ← Navbar
 ├─────────────────────────────────────────────────────────┤
 │  REQ/S: 5   │  TOTAL: 1,240  │  6H·0O·0D  │  Avg: 2s  │  ← Metric Cards
 ├──────────────────────────────┬──────────────────────────┤
-│  Virtual Servers Grid        │  Algorithm Selector      │
+│  AWS Servers Grid            │  Algorithm Selector      │
 │  ┌────────┐ ┌────────┐       │  ○ Round Robin           │
 │  │ Alpha  │ │ Beta   │       │  ● Least Connections     │
 │  │ 45%    │ │ 12%    │       │  ○ Weighted RR            │
@@ -62,194 +53,60 @@ When you open the app at `http://localhost:5173`, you see:
 └──────────────────────────────┴──────────────────────────┘
 ```
 
-Everything **updates automatically every 500 milliseconds** — no page refresh needed.
-
 ---
 
-## 📊 Page 1 — Dashboard
+### Page 1: The Dashboard
+This is your command center. It consists of the following detailed components:
 
-The Dashboard is the main page of the application. It contains 5 major sections:
+#### 1. Metric Cards (Top Row)
+Four summary cards give you a quick health snapshot of your entire AWS cluster:
+- **REQ / SECOND:** How many real HTTP requests are currently being fired at the AWS Load Balancer.
+- **TOTAL REQUESTS:** Cumulative count of all requests processed in the current session.
+- **SERVERS STATUS:** A quick glance tally (e.g., `3H · 0O · 0D`), representing Healthy (H), Overloaded (O), and Down (D) nodes.
+- **AVG RESP. TIME:** Average response latency (in milliseconds) across all physical servers.
 
----
+#### 2. The Server Grid
+This grid displays a glassmorphic card for each physical EC2 instance running in your cloud. Each card updates every 500 milliseconds.
 
-### 🔷 Section 1 — Navigation Bar (Top)
-
-The sticky top bar that stays visible as you scroll.
-
-| Element | What It Does |
-|---------|-------------|
-| **⚡ LB Simulator logo** | Brand icon with a lightning bolt; the dot above it **glows green** when simulation is running |
-| **Dashboard link** | Takes you to the main simulation view (active = highlighted) |
-| **Comparison link** | Takes you to the algorithm comparison page |
-| **● 90 reqs counter** | Shows the total request count for this session in real-time; appears only when simulation is running |
-| **Round Robin / Least Conn. badge** | Shows the currently active algorithm |
-| **📶 Live / Offline** | WebSocket connection status — "Live" = real-time updates working; "Offline" = lost connection to backend |
-
-**Why the connection indicator matters:** This app uses WebSockets (persistent connection) instead of polling. If it shows "Offline," the charts stop updating. You can refresh the page to reconnect.
-
----
-
-### 🔷 Section 2 — Metric Cards (4 Cards Row)
-
-Four summary cards at the top of the Dashboard giving you a quick health snapshot.
-
-#### Card 1 — REQ / SECOND
-- **What it shows:** How many requests per second are currently being generated
-- **When stopped:** Shows `0` with text "simulation stopped"
-- **When running:** Shows the rate you set on the slider (e.g., `5`, `20`, `50`)
-- **Why it matters:** Tells you the current traffic intensity hitting your virtual servers
-
-#### Card 2 — TOTAL REQUESTS
-- **What it shows:** The cumulative count of all requests sent during this session
-- **Example:** If you run at 5 req/s for 60 seconds = `300` requests shown
-- **Why it matters:** Helps you understand how much data the comparison table is based on
-
-#### Card 3 — SERVERS (e.g., `6H · 0O · 0D`)
-- **H = Healthy** — Servers working normally (green)
-- **O = Overloaded** — Servers over 75% capacity (amber)
-- **D = Down** — Servers that have been manually crashed (red)
-- **Example:** `4H · 1O · 1D` means 4 healthy, 1 overloaded, 1 crashed
-- **Why it matters:** Instant visual summary of your entire cluster health
-
-#### Card 4 — AVG RESP. TIME
-- **What it shows:** The average response time in milliseconds across all servers combined
-- **When stopped:** Shows `—` (no data)
-- **Example:** `2,240 ms` means requests are taking ~2.2 seconds on average
-- **Why it matters:** A key performance metric — higher response time = overloaded servers slowing down
-
----
-
-### 🔷 Section 3 — Virtual Server Grid
-
-The grid of server cards is the heart of the Dashboard. Each card represents one **virtual server** in your simulated cloud cluster.
-
-#### Server Names & Configuration
-
-| Server | Max Connections | Weight | Purpose |
-|--------|----------------|--------|---------|
-| **Alpha** | 60 | 3 | High-capacity primary server |
-| **Beta**  | 50 | 2 | Medium-capacity server |
-| **Gamma** | 50 | 2 | Medium-capacity server |
-| **Delta** | 40 | 1 | Low-capacity server |
-| **Epsilon** | 40 | 1 | Low-capacity server |
-| **Zeta** | 60 | 3 | High-capacity primary server |
-
-The weight matters for the **Weighted Round Robin** algorithm — Alpha and Zeta get 3× more traffic than Delta and Epsilon.
-
-#### What Each Server Card Shows
-
-```
+```text
 ┌─────────────────────────────────────────┐
 │ 🖥️ Alpha              [Healthy]          │  ← Name + Status Badge
-│    srv-12649f5a                          │  ← Unique Server ID
+│    srv-12649f5a                          │  ← Unique EC2 Node ID
 │                                          │
-│ Load                               45%  │  ← Load Percentage
-│ ████████████░░░░░░░░░░░░░░░            │  ← Connection Load Bar
-│ 27 / 60 connections                     │  ← Active vs Max Connections
+│ Load                               45%  │  ← Real-Time Load %
+│ ████████████░░░░░░░░░░░░░░░            │  ← Active Load Bar
+│ 27 / 60 active HTTP connections         │  
 │                                          │
-│ ⚙ CPU    11%   ↗ Processed   1,240     │  ← CPU Usage & Total Requests Handled
-│ ⏱ Resp.  2s    ↗ Weight      3         │  ← Avg Response Time & Server Weight
-│                                          │
-│ ⚙ CPU Usage                       11%  │  ← Separate CPU bar (color-coded)
-│ ████░░░░░░░░░░░░░░░░░░░░░░░             │
+│ ⚙ CPU    11%   ↗ Processed   1,240     │  ← Processed Request Count
+│ ⏱ Resp.  2s    ↗ Weight      3         │  ← Avg Node Latency
 └─────────────────────────────────────────┘
 ```
+- **Status Badge:** Instantly changes color (Green = Healthy, Amber = Overloaded, Red = Down).
+- **Connection Load Bar:** A progress bar that fills up as AWS routes more traffic to that specific node. If it hits 75% capacity, the whole card glows amber.
 
-**Status Badge Colors:**
-- 🟢 **Healthy** — Load < 75%. Server is accepting requests normally
-- 🟡 **Overloaded** — Load ≥ 75%. Server is struggling; the card border glows amber; alert banner appears at top
-- 🔴 **Down** — Manually crashed via "Trigger Random Failure". A "↻ Recover Server" button appears inside the card
+#### 3. Simulation Controls Panel
+The right-side panel gives you complete control over the live AWS infrastructure:
 
-**The Connection Load Bar:**
-- Fills from left to right as connections increase
-- **Blue gradient** → healthy
-- **Amber gradient + glow** → overloaded (visually alarming)
-- **Red** → down server
-
-**The CPU Bar:**
-- Simulated based on connection load + random noise
-- **Purple/Indigo** → normal (0–65%)
-- **Amber** → stressed (65–85%)
-- **Red** → critical (85%+)
-
-**Active Connections Display:**
-- Shows `27 / 60 connections` meaning 27 requests currently being processed out of a max of 60
-- When a request completes (after 0.8–5 seconds), this number decrements automatically
-
----
-
-### 🔷 Section 4 — Right Panel (Controls + Charts)
-
-The right column contains 4 stacked components:
-
-#### Component A — Load Balancing Algorithm Selector
-
-Three interactive option cards — click any to switch algorithm **instantly**, even mid-simulation:
-
-```
+```text
 ┌─────────────────────────────────────────┐
-│ Load Balancing Algorithm  [Switch anytime]│
+│ [▶ Start Firing Traffic]    [↺ Reset]   │
 ├─────────────────────────────────────────┤
-│ ↻ Round Robin           [ACTIVE]        │
-│   Distributes requests sequentially...  │
-├─────────────────────────────────────────┤
-│ ⟂ Least Connections                     │
-│   Routes to server with fewest...       │
-├─────────────────────────────────────────┤
-│ ⊗ Weighted RR                           │
-│   Like Round Robin but respects...      │
-└─────────────────────────────────────────┘
-```
-
-The **ACTIVE** badge highlights in the algorithm's color (blue/green/purple). When you switch, the backend immediately starts using the new algorithm for the next request — no reset needed.
-
-#### Component B — Simulation Controls
-
-```
-┌─────────────────────────────────────────┐
-│ Simulation Controls                     │
-├─────────────────────────────────────────┤
-│ [▶ Start Simulation]        [↺ Reset]   │
-│ (turns into [⏹ Stop Simulation] when running)│
-├─────────────────────────────────────────┤
-│ REQUEST RATE                    5 req/s │
+│ REQUEST RATE                   15 req/s │
 │ [1]══════○═══════════════════[50]       │
-│      Low traffic                        │
 ├─────────────────────────────────────────┤
 │ CHAOS ENGINEERING                       │
-│ [⚠ Trigger Random Failure]              │
-├─────────────────────────────────────────┤
-│ AUTO-SCALING              6 / 12 servers│
-│ [+ Add Server]  [− Remove]              │
-├─────────────────────────────────────────┤
-│ ● Simulation running · 1,240 reqs       │
+│ [⚠ Trigger Node Failure]                 │
 └─────────────────────────────────────────┘
 ```
+- **Active Load Balancing Algorithm:** Click to instantly swap the AWS Target Group between **Round Robin** and **Least Connections** mid-flight.
+- **Traffic Slider:** Slide from `1 req/s` up to a massive `50 req/s` to stress-test your system dynamically.
+- **Chaos Engineering (Random Failure):** Click this to deliberately crash one of your AWS EC2 servers and watch how the Load Balancer instantly re-routes traffic to the surviving servers.
+- **Auto-Scaling:** Click "+ Add Server" or "- Remove" to simulate horizontal scaling by bringing new EC2 instances online dynamically.
 
-**Start / Stop Button:**
-- **Start:** Begins request generation at the set rate and algorithm
-- **Stop:** Halts generation immediately; logs the session to DynamoDB; all servers gradually drain their active connections
-- **Reset (↺):** Stops simulation AND resets all servers, metrics, and request history to zero
+#### 4. Real-Time Charts
 
-**Request Rate Slider:**
-- Range: **1 to 50 requests per second**
-- Updates live while simulation is running — drag it up to stress-test the servers
-- Color hint: `Low traffic` / `Medium traffic` / `⚠ High traffic` (at 35+)
-
-**Trigger Random Failure (Chaos Engineering):**
-- Randomly selects one *healthy* server and marks it as **Down**
-- That server immediately stops receiving new requests
-- The load balancer automatically re-routes traffic to remaining healthy servers
-- You can recover it by clicking "↻ Recover Server" on its card
-
-**Auto-Scaling:**
-- **+ Add Server:** Adds a new server to the pool (Eta, Theta, Iota... up to 12 max)
-- **− Remove:** Removes the last server from the pool (minimum 1 must remain)
-- This simulates real cloud auto-scaling where you provision more resources under load
-
-#### Component C — Traffic Line Chart (Area Chart)
-
-```
+**The Traffic Area Chart:** A scrolling 30-second timeline showing your requests-per-second volume.
+```text
 RPS ↑
  50 │                ___
  35 │            ___/   \___
@@ -258,407 +115,127 @@ RPS ↑
     └──────────────────────────────→ Time (last 30 seconds)
 ```
 
-- **X-axis:** Time (last 30 data points = ~30 seconds of history)
-- **Y-axis:** Requests per second
-- **Blue gradient fill:** Makes the traffic trend visually clear
-- **No animation:** Updates instantly every second for smooth live appearance
-- When stopped, the chart retains historical data so you can analyze past traffic
-
-#### Component D — Request Distribution Pie Chart (Donut)
-
-```
+**Distribution Donut Chart:** A beautiful, responsive pie chart showing exactly what percentage of total traffic each AWS server has handled.
+```text
         Alpha  30%
       ╱‾‾‾‾‾‾‾╲
-    Beta        Zeta
+    Beta        Gamma
     15%          28%
       ╲_______╱
-    Gamma  Delta  Epsilon
-     12%    8%     7%
+        Delta  
+         27%    
 ```
 
-- Shows what **percentage of total requests** each server handled
-- Updates continuously every 500ms
-- Color-coded per server (12 distinct colors)
-- The **percentage labels** appear inside each slice (hidden if < 5% to avoid clutter)
-- If a server has processed 0 requests, it doesn't appear in the chart
-- Hover over a slice to see the server name, exact count, and percentage in a tooltip
-
----
-
-### 🔷 Section 5 — Bar Chart (Server Load Distribution)
-
-At the bottom of the left column:
-
-```
+**Bottom Bar Chart:** A side-by-side bar graph comparing the live stress load percentage across all nodes simultaneously.
+```text
 Load %
 100│
  75│           ████
  50│      ████ ████ ████
- 25│ ████ ████ ████ ████ ████ ████
-  0└──────────────────────────────
-    Alpha Beta Gamma Delta Eps  Zeta
+ 25│ ████ ████ ████ ████
+  0└────────────────────────
+    Alpha Beta Gamma Delta 
 ```
-
-- **One bar per server** showing current load percentage (0–100%)
-- **Blue bars** = healthy load
-- **Amber bars** = overloaded server (>75%)
-- **Red bars** = downed server (greyed out at low opacity)
-- **Hover tooltip** shows: Load %, exact connections, and status
-- Updates every 500ms via WebSocket — bars animate smoothly as load changes
 
 ---
 
-## 📈 Page 2 — Comparison Page
+### Page 2: Strategy Comparison & Logs
+Click "Comparison" in the Navigation bar to deeply analyze how differently the algorithms performed under identical traffic conditions.
 
-Click **"Comparison"** in the navbar to access this page.
+#### 1. Dive Data Table
+A comprehensive row-by-row matrix proving which algorithm is superior (Least Connections will mathematically show a higher "Fairness Score" and 0 overload events compared to Round Robin during variable traffic lengths). You can also export this straight to CSV.
 
----
+#### 2. Live AWS DynamoDB Logs Viewer
+At the bottom is a raw terminal-style read-out pinging your `LoadBalancerLogs` NoSQL table in AWS `us-east-1`. It proves your session metrics are actually being safely archived in the cloud, loading past historical sessions into view.
 
-### Per-Algorithm Highlight Cards (3 Cards)
-
-One card per algorithm showing a performance snapshot:
-
-```
-┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
-│ ↻ Round Robin        │ │ ⟂ Least Connections   │ │ ⊗ Weighted RR         │
-│  Performance snapshot│ │  Performance snapshot │ │  Performance snapshot │
-│                      │ │                      │ │                      │
-│ Total Reqs │ Avg Resp│ │ Total Reqs │ Avg Resp│ │ Total Reqs │ Avg Resp │
-│   1,240    │  2,100ms│ │    580     │  1,850ms│ │    320     │  2,400ms │
-│                      │ │                      │ │                      │
-│ Overloads  │ Fairness│ │ Overloads  │ Fairness│ │ Overloads  │ Fairness │
-│     12     │   99%   │ │     3      │   99%   │ │     8      │   97%    │
-│                      │ │                      │ │                      │
-│ Request share ████░  │ │ Request share ██░░░  │ │ Request share █░░░░  │
-└──────────────────────┘ └──────────────────────┘ └──────────────────────┘
-```
-
-**How to use:** Run the simulation, then switch between algorithms during the run. Each algorithm accumulates its own separate stats. Then visit this page to compare.
-
----
-
-### Algorithm Comparison Table
-
-The full detailed table with 6 columns:
-
-| Algorithm | Total Requests | Avg Response Time | Overload Events | Fairness Score | Status |
-|-----------|---------------|-------------------|----------------|----------------|--------|
-| Round Robin | 1,240 | 2,100 ms | 12 | 99% | ● Active |
-| Least Connections | 580 | 1,850 ms | 3 | 99% | Tested |
-| Weighted RR | 0 | — | 0 | — | Not tested |
-
-**Column Explanations:**
-- **Total Requests:** How many requests were routed using this algorithm
-- **Avg Response Time:** Average milliseconds from request arrival to completion
-- **Overload Events:** How many times a server went from healthy → overloaded while this algorithm was active
-- **Fairness Score:** `(1 - overload rate) × 100%` — higher is better, 100% = zero overload events
-- **Status:** `● Active` = currently running; `Tested` = was used this session; `Not tested` = never selected
-
-**📥 Export CSV button:** Downloads all comparison data as a `.csv` file you can open in Excel.
-
----
-
-### AWS DynamoDB Session Logs Panel
-
-```
+```text
 ☁ AWS DynamoDB — Session Logs           ✅ Connected (us-east-1)  [↺]
 ─────────────────────────────────────────────────────────────────────
   14:15:32   Round Robin    · 1,240 requests over this session
-  13:58:10   Least Conn.    · 580 requests over this session
-  13:42:05   Weighted RR    · 320 requests over this session
+  13:58:10   Least Conn.    ·  580 requests over this session
+  13:42:05   Weighted RR    ·  320 requests over this session
 ```
-
-- Shows **session history** pulled live from your **AWS DynamoDB** table
-- Green ✅ = DynamoDB is connected and logging
-- Each row = one completed simulation session (stop triggers a log write)
-- Click **↺** to refresh the list
-- If not connected, shows "DynamoDB not connected — check AWS credentials in .env"
 
 ---
 
-## 🔄 Load Balancing Algorithms Explained
+## ☁️ Real AWS Architecture
 
-### Algorithm 1 — Round Robin
+Here is the lifecycle of how the app provisions and uses the AWS infrastructure behind the scenes:
 
-**How it works:**
-```
-Requests:  1   2   3   4   5   6   7   8   9
-Servers:  [A] [B] [C] [A] [B] [C] [A] [B] [C]
-```
-Goes through the healthy server list in a circular loop. Request 1 → Alpha, Request 2 → Beta, Request 3 → Gamma, Request 4 → Alpha again.
+### 1. Bootstrapping EC2 Instances
+When you click **Provision**, your backend automates the deployment via the AWS SDK:
+* **Networking:** It queries the Default VPC and configures a Security Group that opens ports 80 (HTTP) and 3000 (Node API).
+* **Automated Python Web Servers:** It launches EC2 instances and injects a custom `UserData` bootstrapping script. The moment the VMs boot up, they install a custom Python HTTP web server listening on port 3000. These python servers reply to traffic with a unique JSON signature (e.g., `"I am Alpha"`).
 
-**Strengths:**
-- Dead simple — O(1) per request
-- Perfectly fair when all servers are equal
-- No state needed beyond a counter
+### 2. The Application Load Balancer
+The backend simultaneously creates an Application Load Balancer and a Target Group. It registers the newly booted EC2 instances into the Target Group. The Load Balancer binds to Port 80 and begins forwarding external requests directly to the Python instances on Port 3000.
 
-**Weaknesses:**
-- Doesn't know which server is busiest
-- If one request takes 5 seconds, that server still gets the next "turn"
-- Poor for variable-length requests (some long, some short)
-
-**Best for:** APIs where all requests take roughly the same time (e.g., simple GET endpoints).
+### 3. Firing Real Traffic
+Your Node.js core includes a `trafficGenerator` module. When you start the simulation, the module spawns real, asynchronous HTTP requests hitting the AWS ALB DNS URL at your requested rate. 
+By capturing the JSON responses from the Python scripts, the frontend Website charts map exactly which physical AWS node handled which request.
 
 ---
 
-### Algorithm 2 — Least Connections
+## 🔄 Load Balancing Algorithms on AWS
 
-**How it works:**
-```
-Server:    Alpha  Beta  Gamma  Delta
-Active:      8     3      12     1
-Pick: Delta (fewest connections = 1)
-```
-Scans all healthy servers, picks the one with the **lowest `activeConnections`** count right now.
+Because we are using real infrastructure, the **AWS ALB itself** does the routing. Your custom backend modifies the Target Group attributes on the fly to swap these native rules instantly.
 
-**Strengths:**
-- Naturally handles slow/fast requests — busy servers get fewer new requests
-- Self-balancing under variable load
-- Great for real-world traffic patterns
+### 1. Default: Round Robin
+* **How it works:** AWS blindly hands one HTTP request to Alpha, then Beta, then Gamma, and repeats sequentially.
+* **The Vulnerability:** If you artificially force an EC2 instance to take 2 seconds to respond (using a "Slow Down" button), the AWS ALB does not care. It continues sending 33% of the traffic into the overloaded node, causing massive latency spikes and dropped packets.
 
-**Weaknesses:**
-- Slightly more computation per request (must scan all servers)
-- If all servers are at the same count, it picks the first one every time
-
-**Best for:** APIs with variable response times, database queries, file uploads.
+### 2. Advanced: Least Connections (`least_outstanding_requests`)
+* **How it works:** AWS dynamically tracks the active HTTP connection pool of each node. It bypasses sequential order and always forwards the new request to the node with the lowest current workload.
+* **The Magic:** If you trigger a slow server in this mode, the AWS ALB instantly detects the bottleneck. It dynamically reroutes almost all incoming traffic to the fast, healthy servers.
 
 ---
 
-### Algorithm 3 — Weighted Round Robin
+## ⚠ Chaos Engineering & Node Failures
 
-**How it works:**
-```
-Server:   Alpha(w=3)  Beta(w=2)  Delta(w=1)
-List:     [A, A, A, B, B, D]  (built from weights)
-Requests: 1→A, 2→A, 3→A, 4→B, 5→B, 6→D, 7→A, 8→A...
-```
-Builds an **expanded list** based on weights (Alpha weight=3 → appears 3 times in the list) and round-robins through it.
-
-**Strengths:**
-- Handles heterogeneous server pools (different CPU/RAM)
-- Alpha and Zeta (weight=3) get 3× the traffic of Delta and Epsilon (weight=1)
-- Predictable and deterministic
-
-**Weaknesses:**
-- Weights are static — can't adapt to runtime conditions
-- You need to know server capacities upfront
-
-**Best for:** Mixed clusters (e.g., one 8-core server + three 2-core servers).
+This system allows you to visibly simulate catastrophic data center failures on the website:
+1. **Trigger Failure:** If you click "Trigger Random Failure" on the UI, the Node.js backend pings a hidden route on the target EC2 node (e.g. `[IP]:3000/crash`).
+2. **Self-Termination:** The Python HTTP server flags itself as "Terminated" and instantly begins throwing `503 Service Unavailable` errors.
+3. **AWS Auto-Healing:** The AWS ALB Target Group health checks see the 503 errors and officially marks the EC2 instance as *Unhealthy*. Amazon AWS natively stops sending traffic to the failed node, and the website updates the UI to show the Server Card glowing red.
+4. **Auto-Crashing:** If you crank the request rate up too high (over 15-20 requests per second per node), the backend engine natively detects the overload and triggers an automated crash script, perfectly simulating a physical server cluster buckling under pressure!
 
 ---
 
-## 📡 Real-Time System (WebSockets)
+## ⚡ Real-Time Metrics (WebSockets)
 
-The app uses **Socket.io** for bidirectional real-time communication.
+Because traditional HTTP API polling is too slow to visualize live data center metrics, the frontend and backend communicate strictly via **Socket.io**.
 
-```
-Browser                              Backend
-   │                                    │
-   │────── connect ──────────────────→ │
-   │←───── current metrics snapshot ── │
-   │                                    │
-   │   (every 500ms while running)      │
-   │←───── metrics-update ─────────── │  ← live data pushed to you
-   │←───── metrics-update ─────────── │
-   │←───── metrics-update ─────────── │
-   │                                    │
-   │────── request-metrics ─────────→ │  ← you can request manually too
-   │←───── metrics-update ─────────── │
-```
-
-**Why WebSockets instead of HTTP polling?**
-- HTTP polling: browser asks "any updates?" every second → 1 request/second of overhead
-- WebSockets: backend *pushes* updates when they're ready → one persistent connection, instant delivery
-- Result: lower latency, less bandwidth, real-time feel
-
-**What gets pushed every 500ms:**
-- All server states (connections, CPU, status, load%)
-- Global metrics (totalRequests, rpsHistory)
-- Per-algorithm stats
-- Overload alert text
+Instead of the React frontend constantly asking for data, the Node.js backend pushes a massive JSON metrics blob every 500 milliseconds. This binary socket push is what allows all 12 charts, text fields, and server progress bars on the website to animate smoothly and update constantly without freezing the React app.
 
 ---
 
-## ☁️ AWS DynamoDB Cloud Integration
-
-The backend writes to a **DynamoDB table** (`LoadBalancerLogs`) in **us-east-1**.
-
-### Table Schema
-
-| Attribute | Type | Role | Example |
-|-----------|------|------|---------|
-| `sessionId` | String | **Partition Key** (Hash) | `"a3f5b2c1-..."` |
-| `timestamp` | String | **Sort Key** (Range) | `"2026-03-31T14:15:32.000Z"` |
-| `eventType` | String | Record type | `"SESSION_START"`, `"SESSION_END"`, `"METRICS_SNAPSHOT"` |
-| `algorithm` | String | Active algorithm | `"roundRobin"` |
-| `totalRequests` | Number | Request count | `1240` |
-| `requestsPerSecond` | Number | Rate at snapshot | `5` |
-| `overloadedCount` | Number | Overloaded servers | `1` |
-| `metadata` | String | JSON blob of extra info | `"{\"serverCount\":6}"` |
-
-### When Does It Write?
-
-| Event | Trigger |
-|-------|---------|
-| `SESSION_START` | You click "Start Simulation" |
-| `SESSION_END` | You click "Stop Simulation" |
-| `METRICS_SNAPSHOT` | Every 30 seconds while simulation is running |
-
-### Billing
-
-Uses **PAY_PER_REQUEST** billing mode — no upfront provisioning costs. With 160 student credits and the free tier (25 WCU/RCU, 25 GB), this application costs effectively **$0** for development and demo use.
-
 ---
 
-## 🖥️ Virtual Server System
+## 🔍 Deep Dive: How the Cloud Code Works
 
-Each virtual server is created by `ServerPool.js` with this structure:
+This simulator isn't just a UI—it's executing real Amazon SDK commands. Here is a look under the hood at the core files managing the architecture:
+
+### 1. The Internal WebSockets (`backend/src/socket/index.js`)
+Because REST APIs are too slow for real-time dashboards, we attached `socket.io` directly to the Express server. The backend runs a `setInterval` timer that pushes the precise metric array (e.g., how many requests each node handled) every 500 milliseconds, completely bypassing the need for the frontend to ask for it.
+
+### 2. The External AWS APIs (`backend/src/aws/ec2Manager.js`)
+The application directly imports the modern V3 AWS SDK to execute complex infrastructure deployment simply by running native javascript functions:
 
 ```javascript
-{
-  id: "srv-12649f5a",          // Unique 8-char hex ID
-  name: "Alpha",               // Human-readable name
-  activeConnections: 0,        // Currently processing requests
-  totalProcessed: 1240,        // Lifetime completed requests
-  cpuUsage: 11,                // Simulated CPU % (0–99)
-  maxCapacity: 60,             // Maximum concurrent connections
-  weight: 3,                   // WRR weight
-  status: "healthy",           // "healthy" | "overloaded" | "down"
-  responseTime: 2244,          // Rolling avg response time (ms)
-  avgResponseTime: 2100,       // Lifetime average
-  responseSamples: 1240,       // Sample count for avg calculation
-}
+// 1. Import the specific API client from AWS
+import { EC2Client, RunInstancesCommand } from '@aws-sdk/client-ec2';
+
+// 2. Create the API connection using your secrets
+const client = new EC2Client({ 
+   region: 'us-east-1', 
+   credentials: { accessKeyId: '...', secretAccessKey: '...' }
+});
+
+// 3. Use the API to tell AWS to boot up a virtual machine!
+await client.send(new RunInstancesCommand({
+  ImageId: 'ami-0c02fb55956c7d316', // The OS Image
+  InstanceType: 't3.micro',         // The physical hardware size
+}));
 ```
-
-### How Status Is Determined
-
-```
-loadPercent = (activeConnections / maxCapacity) × 100
-
-loadPercent ≥ 75%  →  status = "overloaded"
-loadPercent < 75%  →  status = "healthy"
-manually crashed   →  status = "down"  (stays until recovered)
-```
-
-### How CPU Is Simulated
-
-```
-cpuUsage = (loadPercent × 0.85) + random(−4 to +4)
-           ↑                      ↑
-     Proportional to load    Realistic noise
-```
-
-This makes the CPU feel realistic — it's correlated to connection load but not perfectly linear.
-
-### Request Lifecycle
-
-```
-1. Request arrives
-2. Server selected by algorithm
-3. server.activeConnections++         (load goes up)
-4. server.totalProcessed++            (counter goes up)
-5. Status checked → possibly overloaded
-6. Timer set for 800ms–5000ms (random)
-7. Timer fires: server.activeConnections--   (request done)
-8. Response time recorded
-9. Status checked → possibly back to healthy
-```
-
----
-
-## ⚙️ Simulation Engine — How It Works
-
-`SimulationEngine.js` is the core orchestrator. Here's the flow:
-
-```
-Start() called
-     │
-     ├──→ setInterval every 1 second:
-     │       Loop N times (N = requestRate):
-     │           selectServer() → uses active algorithm
-     │           server.activeConnections++
-     │           setTimeout(random 0.8–5s) → server.activeConnections--
-     │           update stats
-     │
-     ├──→ setInterval every 500ms:
-     │       emit("metrics-update", getMetrics()) → pushed to all browsers
-     │
-     └──→ setInterval every 30s:
-             logMetricsSnapshot() → saved to DynamoDB
-```
-
-**Why separate intervals?**
-- The 1-second interval controls *traffic generation* — aligns with "requests per second"
-- The 500ms interval controls *UI updates* — makes charts feel fluid and responsive
-- The 30-second interval controls *cloud logging* — balances detail vs. DynamoDB write cost
-
----
-
-## ✨ All Features List
-
-| Feature | Description |
-|---------|-------------|
-| **3 Algorithms** | Round Robin, Least Connections, Weighted Round Robin |
-| **Algorithm switching** | Change algorithm live, mid-simulation, no restart needed |
-| **Real-time WebSockets** | All data pushed every 500ms via Socket.io |
-| **6 Virtual Servers** | Alpha through Zeta, each with unique capacity and weight |
-| **Server Cards** | Per-server load bar, CPU bar, connection count, status badge |
-| **Status Detection** | Automatic healthy → overloaded → healthy transitions |
-| **Alert Banner** | Red/amber alert appears when any server is overloaded |
-| **Request Rate Slider** | Adjustable 1–50 req/s, changes instantly |
-| **Start / Stop / Reset** | Full simulation lifecycle control |
-| **Failure Injection** | One-click random server crash (Chaos Engineering) |
-| **Server Recovery** | Recover individual servers or all at once |
-| **Auto-Scaling** | Add servers (up to 12) or remove them dynamically |
-| **Live Bar Chart** | Per-server load % with color-coded bars |
-| **Traffic Area Chart** | Requests per second over last 30 seconds |
-| **Distribution Pie Chart** | Donut chart showing request share per server |
-| **Metric Cards** | RPS, total requests, server health, avg response time |
-| **Algorithm Comparison Table** | Side-by-side stats for all 3 algorithms |
-| **Fairness Score** | Computed metric showing how evenly load was distributed |
-| **CSV Export** | Download comparison data as spreadsheet |
-| **AWS DynamoDB Logging** | Session events + metrics logged to cloud |
-| **Cloud Logs Viewer** | See past session history pulled from DynamoDB |
-| **WebSocket status** | Live/Offline indicator in navbar |
-| **Dark Premium Theme** | Deep navy glassmorphism design |
-| **Responsive Layout** | Works on wide screens and tablets |
-| **Auto-reconnect** | WebSocket reconnects automatically if dropped |
-
----
-
-## 🛠️ Tech Stack Explanation
-
-### Frontend
-
-| Technology | Version | Why Used |
-|-----------|---------|---------|
-| **React 18** | 18.3.1 | Component-based UI with efficient re-renders when socket data changes |
-| **Vite** | 5.2.11 | Blazing-fast dev server + HMR; replaces slow Create React App |
-| **Tailwind CSS** | 3.4.3 | Utility-first CSS for rapid consistent styling without writing class files |
-| **Recharts** | 2.12.3 | React-native charting library; handles live data updates gracefully |
-| **Socket.io-client** | 4.7.5 | WebSocket client that reconnects automatically, works with Vite proxy |
-| **React Router v6** | 6.22.3 | Client-side routing between Dashboard and Comparison pages |
-| **Lucide React** | 0.378.0 | Lightweight icon library (Activity, Server, AlertTriangle, etc.) |
-
-### Backend
-
-| Technology | Version | Why Used |
-|-----------|---------|---------|
-| **Node.js** | 18+ | JavaScript runtime; shares language with frontend |
-| **Express** | 4.18.3 | Minimal HTTP framework for REST API endpoints |
-| **Socket.io** | 4.7.5 | WebSocket server; integrates cleanly with Express |
-| **AWS SDK v3** | 3.540.0 | Modular AWS SDK — only imports DynamoDB, lower bundle size |
-| **UUID** | 9.0.1 | Generates unique session IDs and server IDs |
-| **dotenv** | 16.4.5 | Loads `.env` credentials into `process.env` |
-| **nodemon** | 3.1.0 | Auto-restarts server when you edit backend files during dev |
-
-### Cloud
-
-| Service | Usage |
-|---------|-------|
-| **AWS DynamoDB** | NoSQL table storing simulation session logs and metric snapshots |
-| **Region: us-east-1** | US North Virginia — lowest latency for the demo |
-| **Billing: PAY_PER_REQUEST** | No upfront provisioned throughput; scales automatically |
 
 ---
 
@@ -668,168 +245,113 @@ All endpoints are prefixed with `/api`.
 
 | Method | Endpoint | Request Body | Description |
 |--------|----------|-------------|-------------|
-| `POST` | `/start-simulation` | `{ requestRate: 5, algorithm: "roundRobin" }` | Start generating traffic |
-| `POST` | `/stop-simulation` | — | Stop simulation, log to DynamoDB |
-| `POST` | `/set-algorithm` | `{ algorithm: "leastConnections" }` | Switch algorithm mid-run |
-| `POST` | `/set-rate` | `{ rate: 20 }` | Change request rate mid-run |
+| `POST` | `/provision` | — | Interacts with AWS SDK to boot EC2 servers and build the Load Balancer |
+| `POST` | `/start-simulation` | `{ requestRate: 5, algorithm: "roundRobin" }` | Starts generating HTTP traffic against AWS |
+| `POST` | `/stop-simulation` | — | Stops traffic and forces a log to DynamoDB |
+| `POST` | `/set-algorithm` | `{ algorithm: "leastConnections" }` | Swaps the AWS ALB routing algorithm dynamically |
+| `POST` | `/set-rate` | `{ rate: 20 }` | Changes the botnet request rate mid-run |
 | `GET` | `/get-metrics` | — | Full snapshot of all metrics |
-| `GET` | `/servers-status` | — | Just the server array |
-| `POST` | `/trigger-failure` | — | Crash a random healthy server |
-| `POST` | `/recover-server` | `{ serverId: "srv-12649f5a" }` | Bring a specific server back |
-| `POST` | `/recover-all` | — | Recover all downed servers |
-| `POST` | `/add-server` | — | Add a new server (auto-scaling up) |
-| `POST` | `/remove-server` | — | Remove last server (auto-scaling down) |
-| `POST` | `/reset` | — | Full reset to initial state |
-| `GET` | `/algorithm-stats` | — | Per-algorithm comparison data |
-| `GET` | `/cloud-logs` | — | Fetch recent sessions from DynamoDB |
-| `GET` | `/health` | — | Basic health check → `{ status: "ok" }` |
+| `GET` | `/servers-status` | — | Gets the status of the physical backend nodes |
+| `POST` | `/trigger-failure` | — | Instructs a node to return 503 errors (Chaos Engineering) |
+| `POST` | `/recover-server` | `{ serverId: "..." }` | Tells a crashed node to start returning 200 OK again |
+| `POST` | `/recover-all` | — | Recovers all downed servers |
+| `POST` | `/add-server` | — | Simulates Auto-scaling by provisioning another node |
+| `POST` | `/reset` | — | Full reset to initial metric state |
+| `GET` | `/algorithm-stats` | — | Fetches comparison data for the current session |
+| `GET` | `/cloud-logs` | — | Fetches historical session logs directly from DynamoDB |
 
 ### WebSocket Events
 
-| Event | Direction | Data |
-|-------|-----------|------|
-| `metrics-update` | Server → Client | Full metrics object (every 500ms) |
-| `request-metrics` | Client → Server | Request an immediate snapshot |
+| Event | Direction | Data | Description |
+|-------|-----------|------|-------------|
+| `infra-status` | Server → Client | Node stats | Live AWS EC2 node connection load and CPU usage |
+| `real-metrics` | Server → Client | Metrics Blob| Total requests, latencies, and global stats (every 500ms) |
+| `request-metrics` | Client → Server | — | Forces a manual request for an immediate snapshot |
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 cis hackathon/
 ├── README.md                    ← This file
+├── about.txt                    ← Extended internal project documentation
 │
 ├── backend/
-│   ├── package.json             ← Dependencies: express, socket.io, aws-sdk, uuid
+│   ├── package.json             ← Dependencies: express, socket.io, aws-sdk
 │   ├── .env                     ← AWS credentials (NEVER commit this)
-│   ├── .env.example             ← Safe template showing variable names only
 │   └── src/
-│       ├── index.js             ← Entry point: Express + Socket.io server setup
-│       │
-│       ├── algorithms/
-│       │   ├── roundRobin.js           ← Stateful circular pointer
-│       │   ├── leastConnections.js     ← Min-scan of activeConnections
-│       │   └── weightedRoundRobin.js   ← Weight-expanded list + pointer
+│       ├── index.js             ← Entry point: Express API + Socket.io server
 │       │
 │       ├── simulation/
-│       │   ├── ServerPool.js           ← Server factory + status logic
-│       │   └── SimulationEngine.js     ← Core orchestrator singleton
+│       │   ├── trafficGenerator.js     ← Botnet logic for firing HTTP traffic at AWS
+│       │   └── RealModeEngine.js       ← Primary orchestrator for the simulation
 │       │
 │       ├── routes/
-│       │   └── api.js                  ← All 15 REST endpoints
+│       │   └── api.js                  ← All Express REST endpoints
 │       │
 │       ├── socket/
-│       │   └── socketHandler.js        ← Socket.io event registration
+│       │   └── socketHandler.js        ← WebSockets broadcasting logic
 │       │
 │       └── aws/
-│           └── dynamoClient.js         ← DynamoDB table init + read/write
+│           ├── ec2Manager.js           ← Script provisioning EC2s, Security Groups, ALB, Target Groups
+│           └── dynamoClient.js         ← DynamoDB table configuration and queries
 │
 └── frontend/
     ├── package.json             ← Dependencies: react, recharts, socket.io-client
-    ├── vite.config.js           ← Proxy /api and /socket.io to localhost:3001
-    ├── tailwind.config.js       ← Custom colors, fonts, animations
-    ├── postcss.config.js        ← Tailwind PostCSS pipeline
-    ├── index.html               ← Root HTML with Google Fonts
+    ├── vite.config.js           
+    ├── tailwind.config.js       
     └── src/
-        ├── main.jsx             ← ReactDOM.createRoot + BrowserRouter
-        ├── App.jsx              ← Routes: / → Dashboard, /comparison → Comparison
-        ├── index.css            ← Global dark theme, glass cards, animations
-        │
-        ├── hooks/
-        │   └── useSocket.js     ← Socket.io connection + metrics state
-        │
-        ├── context/
-        │   └── SimulationContext.jsx  ← Shared state + all API call functions
+        ├── App.jsx              ← React Router endpoints
+        ├── index.css            ← Global dark theme, glassmorphics, Tailwind utilities
         │
         ├── components/
-        │   ├── Navbar.jsx              ← Top nav with logo, links, status badges
-        │   ├── AlertBanner.jsx         ← Overload warning strip
-        │   ├── MetricsCards.jsx        ← 4 summary KPI cards
-        │   ├── ServerCard.jsx          ← Individual server status card
-        │   ├── ServerGrid.jsx          ← Responsive grid of ServerCards
-        │   ├── AlgorithmSelector.jsx   ← 3-option algorithm picker
-        │   ├── SimulationControls.jsx  ← Start/Stop/Slider/Failure/Scaling
-        │   ├── LiveBarChart.jsx        ← Per-server load bar chart
-        │   ├── TrafficLineChart.jsx    ← RPS over time area chart
-        │   ├── DistributionPieChart.jsx← Request distribution donut
-        │   └── ComparisonTable.jsx     ← Algorithm stats table + CSV export
+        │   ├── MetricsCards.jsx        ← 4 summary KPI cards for health/latency
+        │   ├── ServerCard.jsx          ← Individual AWS node status card UI
+        │   ├── SimulationControls.jsx  ← Sidebar controls for rate, algorithm, provisioning
+        │   ├── TrafficLineChart.jsx    ← React-Recharts RPS area chart
+        │   ├── DistributionPieChart.jsx← React-Recharts request distribution donut
+        │   └── ComparisonTable.jsx     ← Visual algorithm comparison matrix
         │
         └── pages/
-            ├── Dashboard.jsx    ← Main simulation view (assembles components)
-            └── Comparison.jsx   ← Algorithm comparison + DynamoDB logs
+            ├── Dashboard.jsx    ← Page 1: Main AWS simulation grid and charts
+            └── Comparison.jsx   ← Page 2: Analytics & historical DynamoDB logs
 ```
 
 ---
 
 ## 🚀 How to Run
 
-### Requirements
-- Node.js 18 or higher
-- npm 9 or higher
+### 1. Configure AWS Credentials
+Before running the application, you must provide your AWS credentials. Create a `.env` file inside the `backend/` directory and add your keys:
 
-### Step 1 — Start Backend
-
-Open a terminal and run:
-```powershell
-cd "d:\2-2\cis\cis hackathon\backend"
-npm run dev
+```text
+AWS_ACCESS_KEY_ID=your_access_key_here
+AWS_SECRET_ACCESS_KEY=your_secret_key_here
+AWS_REGION=us-east-1
 ```
+> **Note:** These credentials must belong to an IAM user with active permissions to manage EC2, ELB, and DynamoDB.
 
-You should see:
-```
-🚀 Load Balancer Simulator Backend
-   → API:     http://localhost:3001/api
-   → Health:  http://localhost:3001/health
-   → Region:  us-east-1
-   → Table:   LoadBalancerLogs
+### 2. Start the Backend
+   ```powershell
+   cd backend
+   npm install
+   npm run dev
+   ```
 
-✅ DynamoDB table "LoadBalancerLogs" created in us-east-1
-```
+### 3. Start the Frontend
+   ```powershell
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
-### Step 2 — Start Frontend
+### 4. Running Your First Simulation
 
-Open a **second** terminal and run:
-```powershell
-cd "d:\2-2\cis\cis hackathon\frontend"
-npm run dev
-```
-
-You should see:
-```
-VITE v5.4.21  ready in 327 ms
-  ➜  Local:   http://localhost:5173/
-```
-
-### Step 3 — Open the App
-
-Go to **http://localhost:5173** in your browser.
-
-### Step 4 — Run a Simulation
-
-1. On the Dashboard, pick an algorithm (e.g., Round Robin)
-2. Set the request rate slider (start at 5 req/s)
-3. Click **▶ Start Simulation**
-4. Watch the server cards update, bars fill, and charts animate
-5. Drag the slider to 30+ req/s to see servers go Overloaded
-6. Click **⚠ Trigger Random Failure** to crash a server
-7. Switch to **Least Connections** — see how it re-distributes
-8. Click **Comparison** in the navbar to see the stats table
-
----
-
-## 🎨 UI Design Decisions
-
-The app uses a **dark premium glassmorphism** design:
-
-- **Background:** `#04080f` — deep dark navy, easy on eyes during demos
-- **Cards:** Semi-transparent with backdrop blur — gives depth and modern feel
-- **Borders:** Subtle `rgba(26,39,68,0.8)` — visible but not harsh
-- **Primary accent:** Blue `#3b82f6` → Purple `#8b5cf6` gradient
-- **Status colors:** Green `#10b981` / Amber `#f59e0b` / Red `#ef4444` — universally understood
-- **Font:** Inter (Google Fonts) — premium, highly legible tech font
-- **Monospace:** JetBrains Mono — for numbers, IDs, and stats (engineers love it)
-- **Animations:** Subtle 200–400ms transitions everywhere; no jarring flashes
-
----
-
-*Made for the CIS Hackathon — demonstrating cloud load balancing concepts with real AWS integration.*
+1. **Boot the Servers:** Open your browser to `http://localhost:5173`. On the right-side control panel, click the **Provision Infrastructure** button. Wait ~30 seconds for the backend to securely boot your AWS physical EC2 instances and Application Load Balancer. Once they're ready, they'll appear online in your Server Grid.
+2. **Start the Traffic:** Click the **Start Firing Traffic** button and drag your slider to roughly `15 req/s`. The animated UI will instantly light up as real asynchronous requests bombard the AWS architecture.
+3. **Visualizing Algorithm Differences:**
+    - By default, the system runs on **Round Robin**. Click **Trigger Node Failure** (or if testing lag, click *Slow Down*) on one of the servers. 
+       - **What the Graphs Show (Round Robin):** The **Bottom Bar Chart** will show the slow node slamming into 100% capacity and glowing red. However, the **Distribution Donut Chart** will remain evenly sliced (~33% each)! This visually proves that Round Robin blindly continues sending massive amounts of traffic into the choking server regardless of its health.
+    - Now, quickly click **Least Connections** on the right panel to swap the AWS routing rules mid-flight. Watch the graphs update in real-time!
+       - **What the Graphs Show (Least Connections):** On the **Distribution Donut Chart**, the slice representing the dying server will visibly shrink down to practically 0%. Simultaneously, the slices for the remaining healthy servers will massively expand (e.g., approaching 50% each). The **Bottom Bar Chart** perfectly reflects this, showing the healthy nodes absorbing the load and sparing the lagging server!
