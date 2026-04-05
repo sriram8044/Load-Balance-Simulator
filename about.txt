@@ -1,0 +1,117 @@
+# Load Balancing Architecture
+
+In this project, Load Balancing happens in **two completely different ways**, depending on whether you are running a "Virtual Simulation" or using "Real AWS Infrastructure".
+
+Here is exactly how both modes work under the hood:
+
+### 1. Virtual Mode (Software Simulation)
+When you are on the **Dashboard** or **Comparison** tabs using Virtual traffic, the load balancing is entirely simulated mathematically inside your Node.js backend.
+*   **The Engine:** Traffic is simulated using an internal loop in `SimulationEngine.js` that generates "dummy requests" continuously. 
+*   **The Router:** The requests are passed to `AlgorithmRunner.js`, which has three built-in algorithms that you manually coded:
+    *   **Round Robin:** Simply increments an index and sends the traffic to Server 1, then Server 2, then Server 3, and loops.
+    *   **Least Connections:** Keeps track of an `activeConnections` count for each mocked server. For every new request, it loops through all servers, finds the one with the lowest count, and assigns the traffic to it.
+    *   **Weighted Round Robin:** Maps requests using a `weight` property to send more traffic to "more powerful" virtual servers.
+
+### 2. Real AWS Mode (Cloud Infrastructure)
+When you switch to the **Infrastructure** tab and click "Launch Real Servers", your app stops simulating traffic and offloads the work to actual AWS hardware.
+*   **The Setup (`ec2Manager.js`):** The backend uses the AWS SDK to provision physical `t2.micro` servers. Inside each server, we inject a tiny Python script that starts an HTTP server on port 3000. We also provision a real **AWS Application Load Balancer (ALB)** and link the servers to its Target Group.
+*   **The Traffic (`trafficGenerator.js`):** When you click "Start Real Traffic", your Node.js backend acts as a botnet, firing hundreds of real HTTP requests per second directly to the public DNS endpoint of the AWS ALB.
+*   **The Router (Round Robin):** The **AWS ALB itself** does the load balancing! Because we do not pass a custom routing algorithm to AWS during creation, the AWS ALB uses its default rule, which is strictly **Round Robin**. AWS takes all the EC2 servers that pass the `/health` check and sequentially hands one HTTP request to each of them in a rotating circle (Server A -> Server B -> Server C -> Server A). If desired, this Target Group attribute can be changed to `least_outstanding_requests` (AWS's equivalent to Least Connections), but out of the box, it behaves exactly like your software-simulated Round Robin.
+*   **The Metrics:** Because the ALB relies on AWS infrastructure, we cannot mathematically calculate the split like we do in the virtual mode. Instead, we physically inspect the HTTP JSON response arriving from your EC2 servers to tally up exactly which physical node processed which request, and paint those stats on the UI.
+
+### 3. Visualizing Algorithms (The "Slow Down" Button)
+Normally, because your `t2.micro` servers process our dummy requests at lightning speed, connections drop instantly and never have time to pile up. That makes "Least Connections" behave completely identically to "Round Robin" since there is never a built-up queue. 
+
+To prove the difference between these two algorithms in a real-world scenario, you can use the **Slow Down** button on a specific server card to force that one instance to take 2 seconds to respond to every HTTP request:
+*   **Under Round Robin:** The AWS ALB doesn't care that the server is overloaded. It blindly continues blasting 33% of your traffic into it regardless, causing Average Latency to spike massively, and requests to timeout and fail.
+*   **Under Least Connections:** As the slow server takes 2 seconds to process requests, its active connections pile up. The AWS ALB immediately detects this bottleneck and dynamically stops sending traffic to the overloaded server, routing almost all new requests to your remaining fast servers instead!
+
+### 4. Deep Dive: AWS Server Creation and Real-Time Routing
+Here is a deep dive into how the application provisions the AWS infrastructure and simulates load balancing:
+
+#### How Servers Are Created in AWS (`ec2Manager.js`)
+When you click "Provision" in the Real Mode of your app, the backend automates the Cloud deployment:
+*   **Networking First:** It queries AWS to find your account's Default VPC (Virtual Private Cloud) and selects two public subnets in different Availability Zones. It also creates a Security Group (`lb-simulator-sg`) that explicitly opens ports 80 (HTTP) and 3000.
+*   **EC2 Bootstrapping:** It makes an API call to launch three `t3.micro` EC2 instances (named Alpha, Beta, Gamma). **The magic part:** It injects a `UserData` script. The moment the EC2 instance turns on, this script runs automatically and writes a tiny, custom Python HTTP web server that immediately starts listening on port 3000.
+*   **The Load Balancer (ALB) Setup:** Finally, it creates an AWS Application Load Balancer. It creates a Target Group on port 3000, binds your three EC2 instances to that group, and tells the ALB to listen on port 80 and forward all traffic to that Target Group.
+
+#### How the Load Balancing Actually Happens Internally
+You are not faking the load balancing. **Amazon AWS is doing it natively.**
+
+Here is the lifecycle when you hit "Start Simulation":
+1.  **Traffic Generation:** Your Node.js backend has a `trafficGenerator` module. When you set it to "5 Requests per second", this module acts like a robot army, firing real HTTP requests at the DNS URL of your live AWS Load Balancer.
+2.  **AWS Routing Algorithm:** When the request hits the AWS ALB, AWS natively decides where it goes. Your code uses an AWS command (`ModifyTargetGroupAttributesCommand`) to swap the algorithm on the fly:
+    *   **Round Robin (`round_robin`):** AWS evenly cycles through Alpha, Beta, and Gamma.
+    *   **Least Connections (`least_outstanding_requests`):** AWS actively checks which server has the fewest active HTTP connections and sends the next request there.
+3.  **The Proof (The Python Servers):** When AWS forwards the request to the Python server on an EC2 instance, that little Python script replies with a JSON message saying: `"I am Alpha and I've handled X requests so far."` The `trafficGenerator` records this reply, and that is exactly how the frontend pie chart knows the request distribution!
+
+#### How the "Chaos" Features Work (Crashing & Slowness)
+If you "crash" a node from the UI, your backend reaches out directly to the public IP of that EC2 instance on a hidden route (e.g., `http://[IP-Address]:3000/crash`).
+*   The Python server flags itself as "down" and starts returning 503 Server Errors.
+*   The real AWS Load Balancer performs a health check, sees the 503 error, marks the node as "Unhealthy," and **automatically stops sending traffic to it**.
+*   Furthermore, if you crank the requests up too high (over 15-20 requests per second per node), the `RealModeEngine` detects the overload and natively triggers an "Auto-Crash" script to simulate servers buckling under pressure!
+
+### 5. API Architecture
+When talking about "APIs" in this project, there are two different layers at play: the **Internal APIs** (how the frontend talks to the backend) and the **External APIs** (how the backend talks to AWS). 
+
+#### External APIs (The AWS SDK)
+To provision servers and manage load balancing, the backend uses the **AWS SDK for JavaScript v3**. Specifically, it interacts with these AWS API clients:
+*   **EC2 API (`@aws-sdk/client-ec2`):** Used to launch virtual machines (`RunInstancesCommand`), terminate them, and fetch their public IPs and statuses.
+*   **Elastic Load Balancing v2 API (`@aws-sdk/client-elastic-load-balancing-v2`):** Used to dynamically create the Application Load Balancer (`CreateLoadBalancerCommand`), build Target Groups, register the EC2 instances to the ALB, and switch the algorithms on the fly.
+*   **CloudWatch API (`@aws-sdk/client-cloudwatch`):** Used to fetch real-time latency and request metrics directly from the AWS Load Balancer.
+*   **DynamoDB API (`@aws-sdk/client-dynamodb` & `@aws-sdk/lib-dynamodb`):** Used to save session logs (timestamps, strategies, request counts) into a NoSQL database via `PutCommand` and `ScanCommand`.
+
+#### Internal APIs (Custom Backend)
+The Node.js backend exposes a custom API for the React frontend to control the simulation. It uses two major technologies:
+
+**A. Express.js REST API (`backend/src/routes/api.js`)**
+This handles one-off commands. Examples of endpoints include:
+*   `POST /api/provision`: Tells the backend to call the AWS SDK and build the servers.
+*   `POST /api/real-start`: Tells the `trafficGenerator.js` botnet to start hitting the AWS ALB.
+*   `POST /api/real-crash-server`: Kills a specific EC2 instance to simulate a failure.
+*   `GET /api/cloud-logs`: Fetches the history of simulations from DynamoDB.
+
+**B. Socket.io (WebSockets)**
+Because this simulator relies heavily on real-time data, traditional REST APIs aren't fast enough. The backend uses WebSockets to stream live data continuously:
+*   Every 1-2 seconds, the backend emits `real-metrics` and `infra-status` events over the WebSocket. 
+*   The React frontend listens to these WebSocket events to instantly update the pie charts, line graphs, and server status cards without needing to refresh the page.
+
+### 6. Deep Dive: API Code Examples
+Here is a closer look at how these APIs are actually implemented in the codebase:
+
+#### The Internal REST API (Express.js)
+In `backend/src/index.js` and `backend/src/routes/api.js`, the `express` library is used to spin up a web server. It is created by defining "Endpoints" (URLs) and associating them with JavaScript functions:
+```javascript
+// Example from api.js
+import { Router } from 'express';
+const router = Router();
+
+// This "creates" the API endpoint
+router.post('/provision', async (req, res) => {
+  // When the frontend hits this URL, run the AWS code
+  realModeEngine.provision(); 
+  res.json({ success: true, message: 'Servers are booting up!' });
+});
+```
+
+#### The Internal WebSockets (Socket.io)
+In `backend/src/socket/index.js`, the code attaches `socket.io` to the Express server. Once the frontend connects, the backend sets up a timer (`setInterval`) that constantly broadcasts the newest data (like how many requests each server handled) every single second, completely bypassing the need for the frontend to ask for it.
+
+#### The External AWS APIs (AWS SDK)
+AWS provides an official library called the **AWS SDK**. In files like `backend/src/aws/ec2Manager.js`, these specific tools are imported and initialized using secret API keys (from the `.env` file) to authenticate with the AWS account.
+```javascript
+// 1. Import the specific API client from AWS
+import { EC2Client, RunInstancesCommand } from '@aws-sdk/client-ec2';
+
+// 2. Create the API connection using your secrets
+const client = new EC2Client({ 
+   region: 'us-east-1', 
+   credentials: { accessKeyId: '...', secretAccessKey: '...' }
+});
+
+// 3. Use the API to tell AWS to boot up a virtual machine!
+await client.send(new RunInstancesCommand({
+  ImageId: 'ami-0c02fb55956c7d316', // The OS
+  InstanceType: 't3.micro',         // The server size
+}));
+```

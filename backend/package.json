@@ -1,0 +1,26 @@
+{
+  "name": "lb-simulator-backend",
+  "version": "1.0.0",
+  "description": "Load Balancer Simulator - Backend API with WebSockets and DynamoDB",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.1020.0",
+    "@aws-sdk/client-dynamodb": "^3.540.0",
+    "@aws-sdk/client-ec2": "^3.1020.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "^3.1020.0",
+    "@aws-sdk/lib-dynamodb": "^3.540.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "node-fetch": "^3.3.2",
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
