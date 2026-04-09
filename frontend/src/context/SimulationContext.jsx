@@ -8,7 +8,8 @@ import { useSocket } from '../hooks/useSocket';
 
 const SimulationContext = createContext(null);
 
-const API = '/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+const API = `${BACKEND_URL}/api`;
 
 async function apiPost(path, body = {}) {
   const res = await fetch(`${API}${path}`, {

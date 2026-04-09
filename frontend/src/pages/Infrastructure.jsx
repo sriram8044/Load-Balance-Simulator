@@ -16,7 +16,8 @@ import {
   Cloud, Database
 } from 'lucide-react';
 
-const API = '/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+const API = `${BACKEND_URL}/api`;
 
 async function apiCall(path, method = 'GET', body = null) {
   const opts = {

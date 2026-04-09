@@ -79,7 +79,8 @@ function CloudLogsPanel() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/cloud-logs');
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const res = await fetch(`${backendUrl}/api/cloud-logs`);
       const data = await res.json();
       setCloudConnected(data.connected);
       setLogs(data.logs || []);
@@ -175,9 +176,10 @@ export default function Comparison() {
   const fetchRealStats = async () => {
     setLoadingReal(true);
     try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
       const [statsRes, metricsRes] = await Promise.all([
-        fetch('/api/real-algorithm-stats'),
-        fetch('/api/real-metrics')
+        fetch(`${backendUrl}/api/real-algorithm-stats`),
+        fetch(`${backendUrl}/api/real-metrics`)
       ]);
       const statsData = await statsRes.json();
       const metricsData = await metricsRes.json();
